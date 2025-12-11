@@ -50,30 +50,6 @@ def load_transfer_portal_multi(
     return pd.concat(dfs, ignore_index=True)
 
 
-def load_team_talent(use_cache: bool = True) -> pd.DataFrame:
-    csv_path = RAW_DIR / "team_talent.csv"
-
-    if use_cache and csv_path.exists():
-        return pd.read_csv(csv_path)
-
-    data = cfbd_get("/talent", {})
-    df = pd.json_normalize(data)
-    df.to_csv(csv_path, index=False)
-    return df
-
-
-def load_team_season_stats(year: int, use_cache: bool = True) -> pd.DataFrame:
-    csv_path = RAW_DIR / f"team_season_stats_{year}.csv"
-
-    if use_cache and csv_path.exists():
-        return pd.read_csv(csv_path)
-
-    data = cfbd_get("/stats/season/team", {"year": year})
-    df = pd.json_normalize(data)
-    df.to_csv(csv_path, index=False)
-    return df
-
-
 def load_player_season_stats(year: int, use_cache: bool = True) -> pd.DataFrame:
     """
     Load aggregated player season stats for a given year.
@@ -152,49 +128,3 @@ def load_sp_plus_multi(start_year: int, end_year: int, use_cache: bool = True) -
     if not dfs:
         return pd.DataFrame()
     return pd.concat(dfs, ignore_index=True)
-
-
-def load_team_records(year: int, use_cache: bool = True) -> pd.DataFrame:
-    """
-    Load team win-loss records for a given year.
-    """
-    csv_path = RAW_DIR / f"team_records_{year}.csv"
-
-    if use_cache and csv_path.exists():
-        return pd.read_csv(csv_path)
-
-    data = cfbd_get("/records", {"year": year})
-    df = pd.json_normalize(data)
-    df.to_csv(csv_path, index=False)
-    return df
-
-
-def attach_player_ids(df_transfers):
-    results = []
-
-    for _, row in df_transfers.iterrows():
-        name = f"{row.firstName} {row.lastName}"
-        search = cfbd_get("/player/search", {"search": name})
-
-        if not search:
-            row["playerId"] = None
-            results.append(row)
-            continue
-
-        candidates = pd.json_normalize(search)
-
-        # Try matching by origin team if possible
-        origin = str(row.origin).lower()
-
-        if origin != "nan":
-            match = candidates[candidates["team"].str.lower() == origin]
-            if not match.empty:
-                row["playerId"] = match.iloc[0]["id"]
-                results.append(row)
-                continue
-
-        # fallback: first result
-        row["playerId"] = candidates.iloc[0]["id"]
-        results.append(row)
-
-    return pd.DataFrame(results)
